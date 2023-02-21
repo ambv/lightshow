@@ -35,6 +35,7 @@ function key(k, z)
   if z == 0 then return end
   if k == 2 then press_reset() end
   if k == 3 then play_pause() end
+  print("Key", k, z)
 end
 
 function set_sample_params()
@@ -104,12 +105,12 @@ end
 
 function redraw_event()
   if screen_dirty then
-    redraw_screen()
+    redraw()
     screen_dirty = false
   end
 end
 
-function redraw_screen()
+function redraw()
   screen.clear()
   screen.aa(0)
   screen.font_face(1)
