@@ -10,6 +10,7 @@ MusicUtil = require "musicutil"
 Timber = include("timber/lib/timber_engine")
 engine.name = "Timber"
 
+
 duration_sec = 0
 message = "LIGHTSHOW"
 local screen_dirty = false
@@ -23,6 +24,7 @@ function init()
   Timber.add_params()
   Timber.add_sample_params(0)
   Timber.play_positions_changed_callback = play_position
+  Timber.meta_changed_callback = sample_meta
   Timber.load_sample(0, "/home/we/dust/audio/lightshow/sound.flac")
   engine.noteKillAll()
 end
@@ -32,18 +34,23 @@ function enc(e, d)
 end
 
 function key(k, z)
+  print("Key", k, z)
   if z == 0 then return end
   if k == 2 then press_reset() end
   if k == 3 then play_pause() end
-  print("Key", k, z)
 end
 
 function set_sample_params()
-  local sr = Timber.samples_meta[0].sample_rate
-
-  params:set("play_mode_0", 2)
+  local meta = Timber.samples_meta[0]
+  if meta.streaming == 1 then
+    params:set("play_mode_0", 2)
+    print("Streaming")
+  else
+    params:set("play_mode_0", 3)
+    print("Not streaming")
+  end
   params:set("amp_env_release_0", 1.0)
-  params:set("start_frame_0", duration_sec * sr)
+  params:set("start_frame_0", duration_sec * meta.sample_rate)
 end
 
 function press_reset()
@@ -59,10 +66,8 @@ end
 
 function play_pause()
   if Timber.samples_meta[0].playing then
-    message = "paused"
     engine.noteOff(0)
   else
-    message = "playing"
     set_sample_params()
     engine.noteOn(
       0, -- voice
@@ -75,6 +80,10 @@ function play_pause()
 end
 
 function play_position(id)
+  if id ~= 0 then
+    return
+  end
+
   local meta = Timber.samples_meta[0]
   local percentage = meta.positions[0] or 0
   local seconds_total = meta.num_frames / meta.sample_rate
@@ -87,6 +96,27 @@ function play_position(id)
   if duration_sec ~= seconds_now then
     duration_sec = seconds_now
     redraw_duration_display()
+  end
+end
+
+function sample_meta(id)
+  if id ~= 0 then
+    return
+  end
+
+  local meta = Timber.samples_meta[0]
+  if meta.playing and message ~= "playing" then
+    message = "playing"
+    screen_dirty = true
+  elseif not meta.playing and message == "playing" then
+    if (meta.num_frames / meta.sample_rate) - duration_sec <= 1 then
+      message = "stopped"
+      duration_sec = 0
+      redraw_duration_display()
+    else
+      message = "paused"
+    end
+    screen_dirty = true
   end
 end
 
@@ -137,6 +167,6 @@ function printable(tbl)
 end
 
 function cleanup()
-  engine.
+  engine.noteKillAll()
   redraw_metro:stop()
 end
