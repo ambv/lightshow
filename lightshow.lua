@@ -12,6 +12,7 @@ R = include("lightshow/lib/rplktr_util")
 engine.name = "Timber"
 
 duration_sec = 0
+track_pct = 0.0
 duration = "00:00"
 track = "by RPLKTR"
 message = "LIGHTSHOW"
@@ -140,6 +141,7 @@ function redraw_duration_display()
   local seconds_now = duration_sec - 60 * minutes_now
 
   track = cue_map[10 * duration_sec].track
+  track_pct = cue_map[10 * duration_sec].percentage
 
   if seconds_now < 10 then
     seconds_now = "0" .. seconds_now
@@ -170,7 +172,16 @@ function redraw()
   screen.level(4)
   screen.move(64, 40)
   screen.text_center(message)
+
+  local progress = math.floor(track_pct * 128.0)
+  screen.level(16)
+  screen.rect(0, 46, progress, 18)
+  screen.fill()
   screen.level(1)
+  screen.rect(progress+1, 46, 128, 18)
+  screen.fill()
+
+  screen.level(0)
   screen.move(64, 58)
   screen.text_center(track)
   screen.fill()
