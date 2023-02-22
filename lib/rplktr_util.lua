@@ -49,28 +49,44 @@ function R.cue_lookup_from(cue_sheet, up_to)
 		track = cue_sheet[cue]
 		tracks[track] = {}
 		tracks[track].start_ms = cue
+		tracks[track].prev = last_track
 
 		if last_track ~= nil then
+			tracks[last_track].next = track
 			tracks[last_track].finish = cue
 		end
 
 		last_track = track
 	end
 
+	tracks[last_track].next = nil
 	tracks[last_track].finish = up_to
 
+	R.pp(tracks)
+
 	for _, cue in ipairs(cues) do
-		track = cue_sheet[cue]
+		name = cue_sheet[cue]
+		local track = tracks[name]
 		local start = math.floor(cue / 100)
-		local finish = math.floor(0.5 + tracks[track].finish / 100)
+		local finish = math.floor(0.5 + track.finish / 100)
 		for i=start, finish do
 			result[i] = {}
-			result[i].track = track
+			result[i].track = name
+			result[i].start = start
+			if track.prev then
+				result[i].prev = tracks[track.prev].start_ms
+			else
+				result[i].prev = nil
+			end
+			if track.next then
+				result[i].next = tracks[track.next].start_ms
+			else
+				result[i].next = nil
+			end
 			result[i].percentage = (i - start) / (finish - start)
 		end
 	end
 
-	print(up_to)
 	for i=0, math.floor(up_to / 100) do
 		if result[i] == nil then
 			print("Missing key", i)

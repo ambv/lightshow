@@ -11,7 +11,7 @@ Timber = include("timber/lib/timber_engine")
 R = include("lightshow/lib/rplktr_util")
 engine.name = "Timber"
 
-duration_sec = 0
+duration_sect = 0
 track_pct = 0.0
 duration = "00:00"
 track = "by RPLKTR"
@@ -23,7 +23,8 @@ redraw_metro = metro.init()
 cue_sheet = {}
 cue_sheet[R.d2m(0,0,0)] = "Tempora M1"
 cue_sheet[R.d2m(3,30,234)] = "Tempora M2"
-cue_sheet[R.d2m(5,29,300)] = "Modular 1"
+cue_sheet[R.d2m(5,29,300)] = "Modular #4"
+cue_sheet[R.d2m(8,53,944)] = "Tempora M3"
 cue_sheet[R.d2m(11,22,777)] = "Iridium Acid"
 cue_sheet[R.d2m(14,10,214)] = "Keith's Fire"
 cue_sheet[R.d2m(16,45,745)] = "Challenger"
@@ -45,13 +46,17 @@ function init()
 end
 
 function enc(e, d)
-  screen_dirty = true
+  print("Enc", e, d)
+  if e == 2 then
+    if d > 0 then next_track() end
+    if d < 0 then prev_track() end
+  end
 end
 
 function key(k, z)
   print("Key", k, z)
   if z == 0 then return end
-  if k == 2 then press_reset() end
+  if k == 2 then press_reset(0) end
   if k == 3 then play_pause() end
 end
 
@@ -63,15 +68,43 @@ function set_sample_params()
     params:set("play_mode_0", 3)
   end
   params:set("amp_env_release_0", 1.0)
-  params:set("start_frame_0", duration_sec * meta.sample_rate)
+  params:set("start_frame_0", math.floor(duration_sect * meta.sample_rate / 10))
 end
 
-function press_reset()
+function next_track()
+  local i = duration_sect
+  local track = cue_map[i].track
+  local new = cue_map[i].next
+  if new then
+    i = math.floor(0.5 + new / 100)
+    while track == cue_map[i].track do
+      i = i + 1
+    end
+    press_reset(i)
+  end
+end
+
+function prev_track()
+  local i = duration_sect
+  local track = cue_map[i].track
+  local new = cue_map[i].prev
+  if new then
+    i = math.floor(new / 100)
+    while track == cue_map[i].track do
+      i = i - 1
+    end
+    press_reset(i)
+  else
+    press_reset(0)
+  end
+end
+
+function press_reset(to)
   if Timber.samples_meta[0].playing then
     return
   end
   message = "stopped"
-  duration_sec = 0
+  duration_sect = to
   set_sample_params()
   redraw_duration_display()
   screen_dirty = true
@@ -100,14 +133,14 @@ function play_position(id)
   local meta = Timber.samples_meta[0]
   local percentage = meta.positions[0] or 0
   local seconds_total = meta.num_frames / meta.sample_rate
-  local seconds_now
+  local sect_now
   if meta.playing then
-    seconds_now = math.floor(percentage * seconds_total)
+    sect_now = math.floor(10 * percentage * seconds_total)
   else
-    seconds_now = duration_sec
+    sect_now = duration_sect
   end
-  if duration_sec ~= seconds_now then
-    duration_sec = seconds_now
+  if duration_sect ~= sect_now then
+    duration_sect = sect_now
     redraw_duration_display()
   end
 end
@@ -125,9 +158,9 @@ function sample_meta(id)
     message = "playing"
     screen_dirty = true
   elseif not meta.playing and message == "playing" then
-    if (meta.num_frames / meta.sample_rate) - duration_sec <= 1 then
+    if (10 * meta.num_frames / meta.sample_rate) - duration_sect <= 1 then
       message = "stopped"
-      duration_sec = 0
+      duration_sect = 0
       redraw_duration_display()
     else
       message = "paused"
@@ -137,11 +170,11 @@ function sample_meta(id)
 end
 
 function redraw_duration_display()
-  local minutes_now = math.floor(duration_sec / 60)
-  local seconds_now = duration_sec - 60 * minutes_now
+  local minutes_now = math.floor(duration_sect / 600)
+  local seconds_now = math.floor((duration_sect - 600 * minutes_now) / 10)
 
-  track = cue_map[10 * duration_sec].track
-  track_pct = cue_map[10 * duration_sec].percentage
+  track = cue_map[duration_sect].track
+  track_pct = cue_map[duration_sect].percentage
 
   if seconds_now < 10 then
     seconds_now = "0" .. seconds_now
