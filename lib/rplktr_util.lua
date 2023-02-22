@@ -69,21 +69,22 @@ function R.cue_lookup_from(cue_sheet, up_to)
 		local track = tracks[name]
 		local start = math.floor(cue / 100)
 		local finish = math.floor(0.5 + track.finish / 100)
+		local meta = {}
+		meta.track = name
+		meta.start = start
+		meta.finish = finish
+		if track.prev then
+			meta.prev = tracks[track.prev].start_ms
+		else
+			meta.prev = nil
+		end
+		if track.next then
+			meta.next = tracks[track.next].start_ms
+		else
+			meta.next = nil
+		end
 		for i=start, finish do
-			result[i] = {}
-			result[i].track = name
-			result[i].start = start
-			if track.prev then
-				result[i].prev = tracks[track.prev].start_ms
-			else
-				result[i].prev = nil
-			end
-			if track.next then
-				result[i].next = tracks[track.next].start_ms
-			else
-				result[i].next = nil
-			end
-			result[i].percentage = (i - start) / (finish - start)
+			result[i] = meta
 		end
 	end
 

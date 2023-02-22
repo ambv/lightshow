@@ -86,6 +86,14 @@ end
 
 function prev_track()
   local i = duration_sect
+  local start = cue_map[i].start
+
+  -- intuitive UX: when jumping back, first jump to the start of the current track
+  if i - start > 10 then
+    press_reset(start)
+    return
+  end
+
   local track = cue_map[i].track
   local new = cue_map[i].prev
   if new then
@@ -173,8 +181,9 @@ function redraw_duration_display()
   local minutes_now = math.floor(duration_sect / 600)
   local seconds_now = math.floor((duration_sect - 600 * minutes_now) / 10)
 
-  track = cue_map[duration_sect].track
-  track_pct = cue_map[duration_sect].percentage
+  local track_cue = cue_map[duration_sect]
+  track = track_cue.track
+  track_pct = (duration_sect - track_cue.start) / (track_cue.finish - track_cue.start)
 
   if seconds_now < 10 then
     seconds_now = "0" .. seconds_now
