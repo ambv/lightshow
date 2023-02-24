@@ -11,16 +11,23 @@ Timber = include("timber/lib/timber_engine")
 R = include("lightshow/lib/rplktr_util")
 engine.name = "Timber"
 
-duration_sect = 0
-track_pct = 0.0
-duration = "00:00"
-track = "by RPLKTR"
-message = "LIGHTSHOW"
+local g = grid.connect()
+local a = arc.connect()
+
+local duration_sect = 0
+local track_pct = 0.0
+local duration = "00:00"
+local track = "by RPLKTR"
+local message = "LIGHTSHOW"
+local is_kick = false
+local is_beat = false
+local is_bar = false
 local screen_dirty = false
-redraw_metro = metro.init()
+local redraw_metro = metro.init()
+local grid = {}
 
 -- map in milliseconds
-cue_sheet = {}
+local cue_sheet = {}
 cue_sheet[R.d2m(0,0,0)] = "Tempora M1"
 cue_sheet[R.d2m(3,30,234)] = "Tempora M2"
 cue_sheet[R.d2m(5,29,300)] = "Modular #4"
@@ -31,11 +38,21 @@ cue_sheet[R.d2m(16,45,745)] = "Challenger"
 cue_sheet[R.d2m(19,15,418)] = "Amen, bracia"
 
 -- dense map in tenths of a second
-cue_map = nil
+local cue_map = nil
 
 function init()
+  for x=1,16 do
+    grid[x] = {}
+    for y=1,8 do
+      grid[x][y] = 0
+    end
+  end
+
+	a:all(0)
+  g:all(0)
+
   redraw_metro.event = redraw_event
-  redraw_metro:start(1 / 10)
+  redraw_metro:start(1 / 30)
 
   Timber.add_params()
   Timber.add_sample_params(0)
@@ -58,6 +75,49 @@ function key(k, z)
   if z == 0 then return end
   if k == 2 then press_reset(0) end
   if k == 3 then play_pause() end
+end
+
+function a.delta(n, d)
+  local now
+  local delta
+  local new
+  if n == 1 then
+    return
+  elseif n == 2 then
+    now = params:get("filter_freq_0")
+    delta = 100
+    if now < 1111 then
+      delta = 8
+    elseif now < 2222 then
+      delta = 12
+    elseif now < 4444 then
+      delta = 25
+    end
+    new = now + delta * d
+    if new > 200 then
+      params:set("filter_freq_0", new)
+    end
+  elseif n == 3 then
+    now = params:get("filter_resonance_0")
+    params:set("filter_resonance_0", now + 0.01 * d)
+  elseif n == 4 then
+    now = params:get("amp_0")
+    delta = 0.02
+    new = now + delta * d
+    if new < -12.0 then
+      new = -12.0
+    elseif new > 0.0 then
+      new = 0.0
+    end
+    params:set("amp_0", new)
+  end
+end
+
+function g.key(x, y, z)
+  if z == 0 then
+    return
+  end
+  grid[x][y] = 16
 end
 
 function set_sample_params()
@@ -184,6 +244,9 @@ function redraw_duration_display()
   local track_cue = cue_map[duration_sect]
   track = track_cue.track
   track_pct = (duration_sect - track_cue.start) / (track_cue.finish - track_cue.start)
+  is_beat = track_cue.beat
+  is_bar = track_cue.bar
+  is_kick = track_cue.kick
 
   if seconds_now < 10 then
     seconds_now = "0" .. seconds_now
@@ -193,6 +256,32 @@ function redraw_duration_display()
   end
   duration = minutes_now .. ":" .. seconds_now
   screen_dirty = true
+
+  local old = 0
+  for x=1,16 do
+    for y=1,8 do
+      old = grid[x][y]
+      if old > 0 then
+        grid[x][y] = old - 1
+      end
+    end
+  end
+
+  local x
+  local y
+  if is_beat then
+    x = 8 + math.floor(0.5 + math.random() * 8)
+    y = math.floor(0.5 + math.random() * 8)
+    grid[x][y] = 16
+  end
+
+  if is_bar then
+    for i=1,4 do
+      x = 8 + math.floor(0.5 + math.random() * 8)
+      y = math.floor(0.5 + math.random() * 8)
+      grid[x][y] = 16
+    end
+  end
 end
 
 function redraw_event()
@@ -200,6 +289,72 @@ function redraw_event()
     redraw()
     screen_dirty = false
   end
+  grid_redraw()
+  arc_redraw()
+end
+
+function grid_redraw()
+  if is_bar then
+    g:all(2)
+  elseif is_beat then
+    g:all(1)
+  else
+    g:all(0)
+  end
+  local percentage = math.floor(16 * track_pct)
+  for i=1,16 do
+    if percentage >= i then
+      g:led(i, 1, 15)
+    end
+  end
+
+  for x=1,16 do
+    for y=3,8 do
+      if grid[x][y] > 0 then
+        g:led(x, y, grid[x][y])
+      end
+    end
+  end
+  g:refresh()
+end
+
+function arc_redraw()
+  if is_bar then
+    a:all(2)
+  elseif is_beat then
+    a:all(1)
+  else
+    a:all(0)
+  end
+  -- ARC 1
+  local percentage = math.floor(64 * track_pct)
+  for i=1,64 do
+    if percentage >= i then
+      a:led(1, i, 15)
+    end
+  end
+  -- ARC 2
+  percentage = math.floor(64 * params:get("filter_freq_0") / 20000)
+  for i=1,64 do
+    if percentage >= i then
+      a:led(2, i, 15)
+    end
+  end
+  -- ARC 3
+  percentage = math.floor(64 * params:get("filter_resonance_0"))
+  for i=1,64 do
+    if percentage >= i then
+      a:led(3, i, 15)
+    end
+  end
+  -- ARC 4
+  percentage = math.floor(64 * (params:get("amp_0") + 24) / 12 - 64)
+  for i=1,64 do
+    if percentage >= i then
+      a:led(4, i, 15)
+    end
+  end
+  a:refresh()
 end
 
 function redraw()
@@ -219,7 +374,11 @@ function redraw()
   screen.level(16)
   screen.rect(0, 46, progress, 18)
   screen.fill()
-  screen.level(1)
+  if is_bar then
+    screen.level(2)
+  else
+    screen.level(1)
+  end
   screen.rect(progress+1, 46, 128, 18)
   screen.fill()
 

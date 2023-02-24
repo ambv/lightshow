@@ -83,18 +83,75 @@ function R.cue_lookup_from(cue_sheet, up_to)
 		else
 			meta.next = nil
 		end
+		meta.bar = false
+		meta.beat = false
+		meta.kick = false
 		for i=start, finish do
-			result[i] = meta
+			result[i] = R.copy(meta)
 		end
 	end
 
-	for i=0, math.floor(up_to / 100) do
+	R.beatfile_in(result)
+
+	-- Note that the resulting table contains a `0` index which
+	-- isn't treated as a numerical index by Lua; it's omitted by
+	-- ipairs() and the `0` key is stored in the hash part of the
+	-- table.
+
+	-- The following checks can be removed when I'm comfortable
+	-- enough with Lua but for now I'm afraid it's too easy to do
+	-- something wrong.
+	local expected_count = math.floor(up_to / 100)
+	local check=0
+	for i=0, expected_count do
 		if result[i] == nil then
-			print("Missing key", i)
+			check = check + 1
+			print("Missing key " .. i)
 		end
 	end
+	if check > 0 then
+		error("Check failed.")
+	end
 
+	check = 0
+	for i in ipairs(result) do
+		check = check + 1
+	end
+	if check ~= expected_count then
+		error("Check should be " .. expected_count .. " but is " .. check)
+	end
 	return result
+end
+
+function R.copy(obj, seen)
+  if type(obj) ~= 'table' then return obj end
+  if seen and seen[obj] then return seen[obj] end
+  local s = seen or {}
+  local res = setmetatable({}, getmetatable(obj))
+  s[obj] = res
+  for k, v in pairs(obj) do res[R.copy(k, s)] = R.copy(v, s) end
+  return res
+end
+
+function R.beatfile_in(cue_map)
+	local fd=io.open(norns.state.data .. "beatfile", "r")
+	if fd then
+		io.input(fd)
+		local i = 1
+		for line in io.lines() do
+			if string.find(line, "B") ~= nil then
+				cue_map[i].bar = true
+			end
+			if string.find(line, "b") ~= nil then
+				cue_map[i].beat = true
+			end
+			if string.find(line, "k") ~= nil then
+				cue_map[i].kick = true
+			end
+			i = i + 1
+		end
+		io.close(fd)
+	end
 end
 
 return R
